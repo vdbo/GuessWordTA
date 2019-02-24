@@ -3,6 +3,6 @@
     <string name="action_settings">Settings</string>
     <string name="match">Gotcha!</string>
     <string name="not_match">No :(</string>
-    <string name="correct">Correct :)</string>
-    <string name="wrong">Wrong :(</string>
+    <string name="win">Whoa, you won\n*applause*</string>
+    <string name="loose">Ah, next time you will be luckier :(</string>
 </resources>

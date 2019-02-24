@@ -6,6 +6,7 @@ import androidx.lifecycle.MutableLiveData
 import com.vdbo.guesswordta.R
 import com.vdbo.guesswordta.data.word.WordEngSpaPair
 import com.vdbo.guesswordta.data.word.WordRepository
+import com.vdbo.guesswordta.presentation.model.AnswerResult
 import com.vdbo.mytaxita.presentation.common.BaseViewModel
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.rxkotlin.addTo
@@ -36,40 +37,9 @@ class MainViewModel @Inject constructor(
     }
 
     fun startGame() {
-        gameManager.counterChanges.withLatestFrom(gameManager.wordsChanges)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeBy(
-                onNext = { (count, word) ->
-                    if (count == 0L) {
-                        gameManager.submitMatch(word)
-                    } else {
-                        _mainState.value = MainState.GuessWordInProgress(
-                            word.original,
-                            word.translated,
-                            0,
-                            count.toString()
-                        )
-                    }
-                },
-                onError = { Log.e("MainViewModel", it.localizedMessage) }
-            )
-            .addTo(disposables)
-        gameManager.answerChanges
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeBy(
-                onNext = { answer ->
-                    when (answer) {
-                        AnswerResult.CORRECT -> _mainState.value =
-                            MainState.UserAnswer(R.color.correct, R.string.correct)
-                        AnswerResult.WRONG -> _mainState.value =
-                            MainState.UserAnswer(R.color.wrong, R.string.wrong)
-                        else -> IllegalArgumentException("Retrieved wrong answer: $answer")
-                    }
-                },
-                onError = { Log.e("MainViewModel", it.localizedMessage) }
-            )
-            .addTo(disposables)
-
+        observeCounter()
+        observeAnswer()
+        observeGameResult()
         gameManager.startGame()
     }
 
@@ -91,6 +61,65 @@ class MainViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun observeCounter() {
+        gameManager.counterChanges.withLatestFrom(gameManager.wordsChanges)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                onNext = { (count, word) ->
+                    if (count == 0L) {
+                        gameManager.submitMatch(word)
+                        return@subscribeBy
+                    }
+                    if (count == GameManager.START_COUNTER) {
+                        _mainState.value = MainState.GuessWordNew(
+                            GameManager.SECONDS_FOR_ANSWER * 1000
+                        )
+                    }
+                    _mainState.value = MainState.GuessWordInProgress(
+                        word.original,
+                        word.translated,
+                        count.toString()
+                    )
+                },
+                onError = { Log.e("MainViewModel", it.localizedMessage) }
+            )
+            .addTo(disposables)
+    }
+
+    private fun observeAnswer() {
+        gameManager.answerChanges
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                onNext = { answer ->
+                    when (answer) {
+                        AnswerResult.CORRECT -> _mainState.value =
+                            MainState.GuessWordMatchResult(R.color.correct)
+                        AnswerResult.WRONG -> _mainState.value =
+                            MainState.GuessWordMatchResult(R.color.wrong)
+                        else -> IllegalArgumentException("Retrieved wrong answer: $answer")
+                    }
+                },
+                onError = { Log.e("MainViewModel", it.localizedMessage) }
+            )
+            .addTo(disposables)
+    }
+
+    private fun observeGameResult() {
+        gameManager.gameWinChanges
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                onNext = { isWin ->
+                    if (isWin) {
+                        _mainState.value = MainState.GameEnd(R.color.correct, R.string.win)
+                    } else {
+                        _mainState.value = MainState.GameEnd(R.color.wrong, R.string.loose)
+                    }
+                },
+                onError = { Log.e("MainViewModel", it.localizedMessage) }
+            )
+            .addTo(disposables)
     }
 
 }

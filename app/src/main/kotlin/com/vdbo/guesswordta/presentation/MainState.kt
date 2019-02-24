@@ -9,21 +9,23 @@ sealed class MainState {
 
     object GameIsReadyToStart : MainState()
 
+    data class GuessWordNew(
+        val answerDurationMs: Long
+    ) : MainState()
+
     data class GuessWordInProgress(
         val originalWord: String,
         val matchingWord: String,
-        val matchingWordPosition: Long,
         val counter: String
     ) : MainState()
 
-    data class UserAnswer(
-        @ColorRes val background: Int,
-        @StringRes val message: Int
+    data class GuessWordMatchResult(
+        @ColorRes val background: Int
     ) : MainState()
 
     data class GameEnd(
-        val message: String,
-        val backgroundColor: String
+        @ColorRes val background: Int,
+        @StringRes val message: Int
     ) : MainState()
 
 }

@@ -1,8 +1,10 @@
 package com.vdbo.guesswordta.presentation
 
 import com.vdbo.guesswordta.data.word.WordEngSpaPair
+import com.vdbo.guesswordta.presentation.model.AnswerResult
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -12,23 +14,26 @@ import kotlin.collections.ArrayList
 class GameManager @Inject constructor() {
 
     companion object {
-        const val WORDS_PER_GAME = 10
-        const val ATTEMPTS_PER_GAME = 3
-        const val WORD_OCCURRENCE = 3
+        private const val WORDS_PER_GAME = 10
+        private const val ATTEMPTS_PER_GAME = 3
+        private const val WORD_OCCURRENCE = 3
         const val SECONDS_FOR_ANSWER = 5L
+        const val START_COUNTER = SECONDS_FOR_ANSWER
     }
 
     private val disposables = CompositeDisposable()
     private val _wordsChanges = PublishSubject.create<WordEngSpaPair>()
-    private var _gameEndChanges = PublishSubject.create<Unit>()
-    private var _answerChanges = PublishSubject.create<AnswerResult>()
+    private val _answerChanges = PublishSubject.create<AnswerResult>()
+    private val _gameWinChanges = PublishSubject.create<Boolean>()
     val wordsChanges: Observable<WordEngSpaPair> = _wordsChanges
     val answerChanges: Observable<AnswerResult> = _answerChanges
+    val gameWinChanges: Observable<Boolean> = _gameWinChanges
     val counterChanges: Observable<Long> =
         Observable.intervalRange(0, SECONDS_FOR_ANSWER + 1, 0, 1, TimeUnit.SECONDS)
             .map { count -> SECONDS_FOR_ANSWER - count }
             .takeUntil(_wordsChanges)
-            .repeatWhen { it.takeUntil(_gameEndChanges) }
+            .repeatWhen { it.takeUntil(_gameWinChanges) }
+            .subscribeOn(Schedulers.io())
 
     private lateinit var words: List<WordEngSpaPair>
     private var wordsToAsk = LinkedList<WordEngSpaPair>()
@@ -41,19 +46,21 @@ class GameManager @Inject constructor() {
     fun startGame() {
         stopGame()
 
-        for (i in 0 until WORDS_PER_GAME) {
+        repeat(WORDS_PER_GAME) {
             val wordsBlock = ArrayList<WordEngSpaPair>(WORD_OCCURRENCE)
             val mainWordPair = words.random()
 
-            wordsBlock.add(mainWordPair)
-            for (i in 2..WORD_OCCURRENCE) {
-                val fakeWordPair = WordEngSpaPair(
-                    mainWordPair.original,
-                    words.random().translated
-                )
-                wordsBlock.add(fakeWordPair)
+            with(wordsBlock) {
+                add(mainWordPair)
+                for (i in 2..WORD_OCCURRENCE) {
+                    val fakeWordPair = WordEngSpaPair(
+                        mainWordPair.original,
+                        words.random().translated
+                    )
+                    add(fakeWordPair)
+                }
+                shuffle()
             }
-            wordsBlock.shuffle()
 
             wordsToAsk.addAll(wordsBlock)
         }
@@ -79,10 +86,6 @@ class GameManager @Inject constructor() {
         }
     }
 
-    fun pauseGame() {
-        //todo: pause game correctly
-    }
-
     fun stopGame() {
         wordsToAsk.clear()
         attempts = ATTEMPTS_PER_GAME
@@ -91,22 +94,26 @@ class GameManager @Inject constructor() {
 
     private fun correctAnswer() {
         if (wordsToAsk.size == 0) {
-            //todo: user won
-            return
+            _gameWinChanges.onNext(true)
+        } else {
+            _answerChanges.onNext(AnswerResult.CORRECT)
+            _wordsChanges.onNext(wordsToAsk.poll())
         }
-        _answerChanges.onNext(AnswerResult.CORRECT)
-        _wordsChanges.onNext(wordsToAsk.poll())
     }
 
     private fun wrongAnswer() {
         attempts--
-        if (attempts < 1) _gameEndChanges.onNext(Unit)
-        _answerChanges.onNext(AnswerResult.WRONG)
-        _wordsChanges.onNext(wordsToAsk.poll())
+
+        if (attempts < 1) {
+            _gameWinChanges.onNext(false)
+            return
+        }
+        if (wordsToAsk.size == 0) {
+            _gameWinChanges.onNext(true)
+        } else {
+            _answerChanges.onNext(AnswerResult.WRONG)
+            _wordsChanges.onNext(wordsToAsk.poll())
+        }
     }
 
-}
-
-enum class AnswerResult {
-    CORRECT, WRONG
 }
