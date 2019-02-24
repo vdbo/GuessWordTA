@@ -1,17 +1,28 @@
 package com.vdbo.guesswordta.presentation
 
 import android.os.Bundle
-import com.google.android.material.snackbar.Snackbar
-import androidx.appcompat.app.AppCompatActivity;
-import android.view.Menu
-import android.view.MenuItem
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
+import com.google.android.material.button.MaterialButton
 import com.vdbo.guesswordta.R
 import com.vdbo.guesswordta.presentation.injection.ComponentKeeper
 
-import kotlinx.android.synthetic.main.activity_main.*
-
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var container: FrameLayout
+    private lateinit var progress: ProgressBar
+    private lateinit var counter: TextView
+    private lateinit var originalWord: TextView
+    private lateinit var matchingWord: TextView
+    private lateinit var match: MaterialButton
+    private lateinit var notMatch: MaterialButton
 
     private val viewModel: MainViewModel by lazy {
         ViewModelProviders.of(this, ComponentKeeper.appComponent().viewModelFactory)
@@ -21,24 +32,44 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        setSupportActionBar(toolbar)
-
-        viewModel.getWords()
+        setUpUi()
+        setUpObserver()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
+    private fun setUpUi() {
+        container = findViewById(R.id.container)
+        progress = findViewById(R.id.progress)
+        counter = findViewById(R.id.counter)
+        originalWord = findViewById(R.id.original_word)
+        matchingWord = findViewById(R.id.matching_word)
+        match = findViewById(R.id.match)
+        notMatch = findViewById(R.id.not_match)
+
+        match.setOnClickListener { viewModel.matchWord() }
+        notMatch.setOnClickListener { viewModel.notMatchWord() }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        return when (item.itemId) {
-            R.id.action_settings -> true
-            else -> super.onOptionsItemSelected(item)
-        }
+    private fun setUpObserver() {
+        viewModel.mainState.observe(this, Observer { state ->
+            when (state) {
+                MainState.Loading -> progress.isVisible = true
+                MainState.GameIsReadyToStart -> {
+                    progress.isVisible = false
+                    viewModel.startGame()
+                }
+                is MainState.GuessWordInProgress -> {
+                    matchingWord.isVisible = true
+                    originalWord.text = state.originalWord
+                    matchingWord.text = state.matchingWord
+                    counter.text = state.counter
+                }
+                is MainState.UserAnswer -> {
+                    container.setBackgroundColor(ContextCompat.getColor(this, state.background))
+                    Toast.makeText(this, state.message, Toast.LENGTH_SHORT).show()
+                }
+                is MainState.GameEnd -> TODO()
+            }.also { }
+        })
     }
+
 }

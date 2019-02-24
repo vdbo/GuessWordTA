@@ -10,7 +10,7 @@ import javax.inject.Inject
     private val bApi: BApi
 ) {
 
-    fun getWords(): Single<List<WordPair>> {
+    fun getWords(): Single<List<WordEngSpaPair>> {
         return bApi.getWords()
             .subscribeOn(Schedulers.io())
     }
